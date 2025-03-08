@@ -3,12 +3,15 @@ from utils.downloader import load_images_from_directory
 from utils.face_detector import (
     load_facenet_model, load_mtcnn_model, find_target_person_in_images
 )
-from utils.file_utils import ensure_folder_exists, delete_files_in_folder
-from config import TARGET_PERSON_IMAGE, IMAGE_DIRECTORY, get_output_subfolder
+from utils.file_utils import ensure_folder_exists
+from config import  get_output_subfolder
+import ui
 
 def main():
     # 生成输出子文件夹路径
-    output_subfolder = get_output_subfolder(IMAGE_DIRECTORY)
+    target_person, images = ui.get_user_inputs()
+    print(target_person, images)
+    output_subfolder = get_output_subfolder(images)
     ensure_folder_exists(output_subfolder)
 
     # 加载 FaceNet 模型
@@ -18,13 +21,13 @@ def main():
     mtcnn_model = load_mtcnn_model()
 
     # 1. 从本地目录加载图片
-    print(f"Loading images from directory: {IMAGE_DIRECTORY}")
-    image_paths = load_images_from_directory(IMAGE_DIRECTORY)
+    print(f"Loading images from directory: {images}")
+    image_paths = load_images_from_directory(images)
     print(f"Loaded {len(image_paths)} images.")
 
     # 2. 在加载的图片中查找目标人物
     print("Finding target person in the images...")
-    matched_images = find_target_person_in_images(image_paths, TARGET_PERSON_IMAGE, mtcnn_model, facenet_model)
+    matched_images = find_target_person_in_images(image_paths, target_person, mtcnn_model, facenet_model)
 
     # 3. 显示匹配的图片数量
     print(f"Found {len(matched_images)} matching images.")
