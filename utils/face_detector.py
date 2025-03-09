@@ -35,12 +35,8 @@ def extract_face_embeddings(face_image, model):
     embeddings = model(face_tensor)
     return embeddings.detach().numpy()
 
-def compare_faces(face1, face2, model):
-    """比较两张人脸的相似度"""
-    # 提取特征向量
-    embedding1 = extract_face_embeddings(face1, model)
-    embedding2 = extract_face_embeddings(face2, model)
-
+def compare_faces(embedding1, embedding2):
+    """比较两个人脸特征向量的相似度"""
     # 计算余弦相似度
     similarity = np.dot(embedding1, embedding2.T) / (
         np.linalg.norm(embedding1) * np.linalg.norm(embedding2))
@@ -71,17 +67,41 @@ def detect_faces(image_path, mtcnn_model):
     print(f"Detected {len(detected_faces)} faces in {image_path}")
     return detected_faces, image
 
-def find_target_person_in_images(image_paths, target_image_path, mtcnn_model, facenet_model):
-    """在图片中查找目标人物"""
-    # 加载目标人物的照片并检测人脸
-    target_faces, target_image = detect_faces(target_image_path, mtcnn_model)
-    if not target_faces:
-        print("No face detected in the target image.")
-        return []
+def get_average_embedding(image_paths, mtcnn_model, facenet_model):
+    """获取目标人物的多张照片的平均特征向量"""
+    embeddings = []
+    for image_path in image_paths:
+        try:
+            # 检测当前图片中的人脸
+            faces, current_image = detect_faces(image_path, mtcnn_model)
+            if not faces:
+                continue
 
-    # 提取目标人物的脸部区域
-    (x1, y1, x2, y2) = target_faces[0]
-    target_face = target_image[y1:y2, x1:x2]
+            # 提取第一张检测到的人脸
+            (x1, y1, x2, y2) = faces[0]
+            face_image = current_image[y1:y2, x1:x2]
+
+            # 提取特征向量
+            embedding = extract_face_embeddings(face_image, facenet_model)
+            embeddings.append(embedding)
+        except Exception as e:
+            print(f"Error processing {image_path}: {e}")
+
+    if not embeddings:
+        print("No valid embeddings found.")
+        return None
+
+    # 计算平均特征向量
+    average_embedding = np.mean(embeddings, axis=0)
+    return average_embedding
+
+def find_target_person_in_images(image_paths, target_image_paths, mtcnn_model, facenet_model):
+    """在图片中查找目标人物"""
+    # 获取目标人物的平均特征向量
+    target_embedding = get_average_embedding(target_image_paths, mtcnn_model, facenet_model)
+    if target_embedding is None:
+        print("Failed to get target embedding.")
+        return []
 
     matched_images = []
     for image_path in image_paths:
@@ -95,9 +115,12 @@ def find_target_person_in_images(image_paths, target_image_path, mtcnn_model, fa
             for (x1, y1, x2, y2) in faces:
                 current_face = current_image[y1:y2, x1:x2]
 
+                # 提取当前人脸的特征向量
+                current_embedding = extract_face_embeddings(current_face, facenet_model)
+
                 # 计算相似度
-                similarity = compare_faces(target_face, current_face, facenet_model)
-                if similarity > 0.6:  # 相似度阈值（可根据需求调整）
+                similarity = compare_faces(target_embedding, current_embedding)
+                if similarity > 0.52:  # 相似度阈值（可根据需求调整）
                     matched_images.append(image_path)
                     break
         except Exception as e:
